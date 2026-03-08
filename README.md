@@ -8,6 +8,7 @@ This project is a lightweight desktop app that indexes files on your Windows mac
 - Automatic file categorization (Documents, Images, Videos, Code, etc.).
 - Live search by filename.
 - Category-based filtering.
+- Modern, animated UI (dark theme, glowing header animation, animated progress bar, zebra-striped result grid).
 - Built with Python standard library (`tkinter`, `sqlite3`) so no third-party dependency is required.
 
 ## Run on Windows 11

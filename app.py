@@ -98,67 +98,146 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Windows 11 Fast Search + File Categorizer")
-        self.root.geometry("1200x700")
+        self.root.geometry("1260x760")
+        self.root.configure(bg="#101726")
 
         self.indexer = FastIndexer(DB_NAME)
         self.scan_queue: queue.Queue[str] = queue.Queue()
         self.scanning = False
         self.selected_root = tk.StringVar(value=str(Path.home()))
         self.category_filter = tk.StringVar(value="All")
+        self.status = tk.StringVar(value="Ready")
+        self.search_var = tk.StringVar()
 
+        self._status_tick = 0
+        self._hero_step = 0
+
+        self._build_style()
         self._build_ui()
         self._refresh_categories()
+        self._animate_hero()
+        self._animate_status()
+
+    def _build_style(self) -> None:
+        self.style = ttk.Style(self.root)
+        self.style.theme_use("clam")
+
+        bg = "#101726"
+        panel = "#1A2438"
+        panel_alt = "#162034"
+        fg = "#E9EEF9"
+
+        self.style.configure("Root.TFrame", background=bg)
+        self.style.configure("Card.TFrame", background=panel)
+        self.style.configure("AltCard.TFrame", background=panel_alt)
+        self.style.configure("Title.TLabel", background=bg, foreground="#F6F8FF", font=("Segoe UI Semibold", 22))
+        self.style.configure("Subtitle.TLabel", background=bg, foreground="#AFC3E5", font=("Segoe UI", 10))
+        self.style.configure("Label.TLabel", background=panel, foreground=fg, font=("Segoe UI", 10))
+        self.style.configure("Status.TLabel", background=panel, foreground="#9FD6FF", font=("Segoe UI", 10, "bold"))
+        self.style.configure("Glow.TButton", font=("Segoe UI", 10, "bold"), borderwidth=0, padding=(14, 8))
+        self.style.map(
+            "Glow.TButton",
+            background=[("active", "#5D6DFF"), ("!disabled", "#495BFA")],
+            foreground=[("!disabled", "#FFFFFF")],
+        )
+        self.style.configure("TEntry", fieldbackground="#0D1628", foreground="#EEF3FF", bordercolor="#2D3D59")
+        self.style.configure("TCombobox", fieldbackground="#0D1628", background="#0D1628", foreground="#EEF3FF")
+
+        self.style.configure("Treeview", background="#111A2B", fieldbackground="#111A2B", foreground="#ECF2FF", rowheight=28, borderwidth=0)
+        self.style.configure("Treeview.Heading", background="#27314D", foreground="#DCE7FF", relief="flat", font=("Segoe UI Semibold", 10))
+        self.style.map("Treeview", background=[("selected", "#364A77")])
+
+        self.style.configure("Accent.Horizontal.TProgressbar", troughcolor="#0B1323", background="#4CC8FF", lightcolor="#4CC8FF", darkcolor="#4CC8FF", bordercolor="#0B1323")
 
     def _build_ui(self) -> None:
-        top = ttk.Frame(self.root, padding=10)
-        top.pack(fill="x")
+        root_frame = ttk.Frame(self.root, style="Root.TFrame", padding=12)
+        root_frame.pack(fill="both", expand=True)
 
-        ttk.Label(top, text="Folder / Drive:").pack(side="left")
-        ttk.Entry(top, textvariable=self.selected_root, width=60).pack(side="left", padx=6)
-        ttk.Button(top, text="Browse", command=self._choose_folder).pack(side="left")
-        ttk.Button(top, text="Build / Rebuild Index", command=self._start_scan).pack(side="left", padx=8)
+        hero = ttk.Frame(root_frame, style="Root.TFrame")
+        hero.pack(fill="x", pady=(0, 10))
 
-        self.status = tk.StringVar(value="Ready")
-        ttk.Label(top, textvariable=self.status, foreground="blue").pack(side="right")
+        ttk.Label(hero, text="⚡ Hyper Search for Windows 11", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(hero, text="Fast index + smart categories + modern UI", style="Subtitle.TLabel").pack(anchor="w", pady=(2, 8))
 
-        search_frame = ttk.Frame(self.root, padding=(10, 0, 10, 10))
-        search_frame.pack(fill="x")
+        self.hero_glow = tk.Canvas(hero, height=6, bg="#101726", highlightthickness=0)
+        self.hero_glow.pack(fill="x")
+        self.hero_bar = self.hero_glow.create_rectangle(0, 0, 200, 6, fill="#4CC8FF", outline="")
 
-        ttk.Label(search_frame, text="Search:").pack(side="left")
-        self.search_var = tk.StringVar()
-        entry = ttk.Entry(search_frame, textvariable=self.search_var, width=50)
-        entry.pack(side="left", padx=6)
-        entry.bind("<KeyRelease>", lambda _e: self._run_search())
+        controls = ttk.Frame(root_frame, style="Card.TFrame", padding=12)
+        controls.pack(fill="x", pady=(4, 10))
 
-        ttk.Label(search_frame, text="Category:").pack(side="left", padx=(12, 0))
-        self.category_combo = ttk.Combobox(
-            search_frame,
-            textvariable=self.category_filter,
-            state="readonly",
-            values=["All"],
-            width=20,
-        )
-        self.category_combo.pack(side="left", padx=6)
+        ttk.Label(controls, text="Folder / Drive", style="Label.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Entry(controls, textvariable=self.selected_root, width=66).grid(row=0, column=1, sticky="ew", padx=8)
+        ttk.Button(controls, text="Browse", style="Glow.TButton", command=self._choose_folder).grid(row=0, column=2, padx=4)
+        ttk.Button(controls, text="Build / Rebuild Index", style="Glow.TButton", command=self._start_scan).grid(row=0, column=3, padx=(4, 0))
+
+        ttk.Label(controls, text="Search", style="Label.TLabel").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        search_entry = ttk.Entry(controls, textvariable=self.search_var, width=54)
+        search_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=(10, 0))
+        search_entry.bind("<KeyRelease>", lambda _e: self._run_search())
+
+        ttk.Label(controls, text="Category", style="Label.TLabel").grid(row=1, column=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        self.category_combo = ttk.Combobox(controls, textvariable=self.category_filter, state="readonly", values=["All"], width=20)
+        self.category_combo.grid(row=1, column=3, sticky="w", pady=(10, 0))
         self.category_combo.bind("<<ComboboxSelected>>", lambda _e: self._run_search())
 
-        main = ttk.Panedwindow(self.root, orient="horizontal")
-        main.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self.progress = ttk.Progressbar(controls, style="Accent.Horizontal.TProgressbar", mode="indeterminate")
+        self.progress.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(12, 4))
+        self.progress.grid_remove()
 
-        left = ttk.Frame(main)
-        right = ttk.Frame(main)
-        main.add(left, weight=1)
-        main.add(right, weight=4)
+        ttk.Label(controls, textvariable=self.status, style="Status.TLabel").grid(row=3, column=0, columnspan=4, sticky="w")
+        controls.columnconfigure(1, weight=1)
 
-        ttk.Label(left, text="Category Counts", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        self.stats = tk.Text(left, height=30, width=25, state="disabled")
+        content = ttk.Panedwindow(root_frame, orient="horizontal")
+        content.pack(fill="both", expand=True)
+
+        left = ttk.Frame(content, style="AltCard.TFrame", padding=10)
+        right = ttk.Frame(content, style="Card.TFrame", padding=10)
+        content.add(left, weight=1)
+        content.add(right, weight=4)
+
+        ttk.Label(left, text="Category Insights", style="Label.TLabel", font=("Segoe UI Semibold", 11)).pack(anchor="w", pady=(0, 6))
+        self.stats = tk.Text(
+            left,
+            height=30,
+            width=27,
+            state="disabled",
+            bg="#101A2E",
+            fg="#CDE1FF",
+            insertbackground="#FFFFFF",
+            relief="flat",
+            font=("Consolas", 10),
+        )
         self.stats.pack(fill="both", expand=True)
 
         columns = ("name", "category", "size", "modified", "path")
         self.tree = ttk.Treeview(right, columns=columns, show="headings")
-        for col, width in [("name", 220), ("category", 120), ("size", 90), ("modified", 160), ("path", 520)]:
+        widths = [("name", 240), ("category", 130), ("size", 100), ("modified", 170), ("path", 560)]
+        for col, width in widths:
             self.tree.heading(col, text=col.capitalize())
             self.tree.column(col, width=width, anchor="w")
         self.tree.pack(fill="both", expand=True)
+
+        self.tree.tag_configure("even", background="#121E33")
+        self.tree.tag_configure("odd", background="#0E1728")
+
+    def _animate_hero(self) -> None:
+        width = max(self.hero_glow.winfo_width(), 200)
+        bar_width = 260
+        x = (self._hero_step % (width + bar_width)) - bar_width
+        self.hero_glow.coords(self.hero_bar, x, 0, x + bar_width, 6)
+        colors = ["#4CC8FF", "#66B3FF", "#829BFF", "#6FA9FF"]
+        self.hero_glow.itemconfig(self.hero_bar, fill=colors[(self._hero_step // 8) % len(colors)])
+        self._hero_step += 6
+        self.root.after(45, self._animate_hero)
+
+    def _animate_status(self) -> None:
+        if self.scanning:
+            dots = "." * (self._status_tick % 4)
+            if "Indexing" in self.status.get() and not self.status.get().endswith("..."):
+                self.status.set(self.status.get().split(".")[0] + dots)
+        self._status_tick += 1
+        self.root.after(350, self._animate_status)
 
     def _choose_folder(self) -> None:
         folder = filedialog.askdirectory(initialdir=self.selected_root.get())
@@ -174,7 +253,10 @@ class App:
             return
 
         self.scanning = True
-        self.status.set("Indexing started...")
+        self.status.set("Indexing started")
+        self.progress.grid()
+        self.progress.start(9)
+
         t = threading.Thread(target=self._scan_files, args=(root_path,), daemon=True)
         t.start()
         self.root.after(200, self._poll_queue)
@@ -211,7 +293,7 @@ class App:
                                 if len(batch) >= 2000:
                                     self.indexer.bulk_insert(batch)
                                     batch.clear()
-                                    self.scan_queue.put(f"Indexed {total:,} files...")
+                                    self.scan_queue.put(f"Indexed {total:,} files")
                         except (PermissionError, FileNotFoundError, OSError):
                             continue
             except (PermissionError, FileNotFoundError, NotADirectoryError, OSError):
@@ -230,6 +312,8 @@ class App:
                 _, count, elapsed = msg.split("::")
                 self.status.set(f"Done. Indexed {int(count):,} files in {elapsed}s")
                 self.scanning = False
+                self.progress.stop()
+                self.progress.grid_remove()
                 self._refresh_categories()
                 self._run_search()
                 return
@@ -247,8 +331,10 @@ class App:
 
         self.stats.config(state="normal")
         self.stats.delete("1.0", "end")
+        self.stats.insert("end", "Category        Count\n", "head")
+        self.stats.insert("end", "---------------------\n", "head")
         for name, count in stats:
-            self.stats.insert("end", f"{name:<15} {count:,}\n")
+            self.stats.insert("end", f"{name:<14} {count:,}\n")
         self.stats.config(state="disabled")
 
     def _run_search(self) -> None:
@@ -259,18 +345,13 @@ class App:
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        for name, path, category, size, modified in rows:
+        for idx, (name, path, category, size, modified) in enumerate(rows):
             size_kb = f"{size / 1024:.1f} KB"
-            self.tree.insert("", "end", values=(name, category, size_kb, modified, path))
+            self.tree.insert("", "end", values=(name, category, size_kb, modified, path), tags=("even" if idx % 2 == 0 else "odd",))
 
 
 def main() -> None:
     root = tk.Tk()
-    style = ttk.Style(root)
-    try:
-        style.theme_use("vista")
-    except tk.TclError:
-        pass
     App(root)
     root.mainloop()
 
