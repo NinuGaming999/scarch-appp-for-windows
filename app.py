@@ -159,7 +159,7 @@ class App:
         hero.pack(fill="x", pady=(0, 10))
 
         ttk.Label(hero, text="⚡ Hyper Search for Windows 11", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(hero, text="Fast index + smart categories + modern UI", style="Subtitle.TLabel").pack(anchor="w", pady=(2, 8))
+        ttk.Label(hero, text="Created By Ninad", style="Subtitle.TLabel").pack(anchor="w", pady=(2, 8))
 
         self.hero_glow = tk.Canvas(hero, height=6, bg="#101726", highlightthickness=0)
         self.hero_glow.pack(fill="x")
