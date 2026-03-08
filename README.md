@@ -35,19 +35,33 @@ This repository includes a full Windows packaging flow that creates:
 
 ### Steps (on your build machine only)
 
-1. Install **Inno Setup 6**: https://jrsoftware.org/isdl.php
-2. Open PowerShell in the project root.
-3. Run:
+1. Use a **Windows machine** (required).
+2. Install **Inno Setup 6**: https://jrsoftware.org/isdl.php
+3. Open PowerShell in the project root.
+4. Run:
 
 ```powershell
 .\build_windows.ps1
 ```
 
-4. Share only this file with users:
+5. Share only this file with users:
 
 ```text
 dist_installer\HyperSearchInstaller.exe
 ```
+
+## Fix: "This app can’t run on your PC"
+
+If you see this message when opening `HyperSearchInstaller.exe`, usually one of these happened:
+
+1. The installer was built on Linux/macOS (invalid for Windows).  
+   - Rebuild on Windows using `build_windows.ps1`.
+2. The downloaded file is incomplete/corrupted.  
+   - Download again and verify SHA256 hash printed by the build script.
+3. The file was blocked by Windows after internet download.  
+   - Right click installer → **Properties** → **Unblock** (if shown) → Apply.
+4. You are launching from inside ZIP without extracting.  
+   - Extract ZIP first, then run installer.
 
 ## Run from source (development only)
 
