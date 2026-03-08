@@ -9,6 +9,7 @@ This project is a lightweight desktop app that indexes files on your Windows mac
 - Live search by filename.
 - Category-based filtering.
 - Modern, animated UI (dark theme, glowing header animation, animated progress bar, zebra-striped result grid).
+- Double-click a result to open an in-app file panel with actions: **Open**, **Edit** (text-based files), and **Rename**.
 - Built with Python standard library (`tkinter`, `sqlite3`) so no third-party dependency is required.
 
 ## Run on Windows 11
@@ -27,6 +28,7 @@ python app.py
 2. Click **Build / Rebuild Index**.
 3. Type in the search box to get instant results.
 4. Use the category dropdown to narrow results.
+5. Double-click any result to manage it inside the app (open/edit/rename).
 
 ## Notes
 

@@ -1,6 +1,7 @@
 import os
 import queue
 import sqlite3
+import subprocess
 import threading
 import time
 import tkinter as tk
@@ -108,6 +109,7 @@ class App:
         self.category_filter = tk.StringVar(value="All")
         self.status = tk.StringVar(value="Ready")
         self.search_var = tk.StringVar()
+        self.editor_extensions = {".txt", ".md", ".py", ".json", ".xml", ".csv", ".log", ".ini", ".yaml", ".yml", ".html", ".css", ".js", ".ts"}
 
         self._status_tick = 0
         self._hero_step = 0
@@ -220,6 +222,7 @@ class App:
 
         self.tree.tag_configure("even", background="#121E33")
         self.tree.tag_configure("odd", background="#0E1728")
+        self.tree.bind("<Double-1>", self._on_result_open)
 
     def _animate_hero(self) -> None:
         width = max(self.hero_glow.winfo_width(), 200)
@@ -348,6 +351,172 @@ class App:
         for idx, (name, path, category, size, modified) in enumerate(rows):
             size_kb = f"{size / 1024:.1f} KB"
             self.tree.insert("", "end", values=(name, category, size_kb, modified, path), tags=("even" if idx % 2 == 0 else "odd",))
+
+    def _on_result_open(self, _event: tk.Event) -> None:
+        selected = self.tree.selection()
+        if not selected:
+            return
+        item = self.tree.item(selected[0])
+        values = item.get("values", [])
+        if len(values) < 5:
+            return
+        file_name, category, size_label, modified, file_path = values
+        self._show_file_window(file_path, file_name, category, size_label, modified)
+
+    def _show_file_window(self, file_path: str, file_name: str, category: str, size_label: str, modified: str) -> None:
+        if not os.path.exists(file_path):
+            messagebox.showerror("Missing file", "The selected file no longer exists.")
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title(f"File: {file_name}")
+        win.geometry("860x620")
+        win.configure(bg="#101726")
+
+        top = ttk.Frame(win, style="Card.TFrame", padding=12)
+        top.pack(fill="x", padx=10, pady=10)
+        ttk.Label(top, text=file_name, style="Label.TLabel", font=("Segoe UI Semibold", 14)).pack(anchor="w")
+        ttk.Label(top, text=f"Category: {category}    Size: {size_label}    Modified: {modified}", style="Label.TLabel").pack(anchor="w", pady=(2, 0))
+        ttk.Label(top, text=file_path, style="Subtitle.TLabel").pack(anchor="w", pady=(2, 0))
+
+        actions = ttk.Frame(win, style="Card.TFrame", padding=(12, 6))
+        actions.pack(fill="x", padx=10)
+        ttk.Button(actions, text="Open", style="Glow.TButton", command=lambda: self._open_file(file_path)).pack(side="left", padx=(0, 8))
+        ttk.Button(actions, text="Edit", style="Glow.TButton", command=lambda: self._focus_editor(win)).pack(side="left", padx=(0, 8))
+        ttk.Button(actions, text="Rename", style="Glow.TButton", command=lambda: self._rename_from_window(win, file_path)).pack(side="left")
+
+        notebook = ttk.Notebook(win)
+        notebook.pack(fill="both", expand=True, padx=10, pady=(8, 10))
+
+        info_tab = ttk.Frame(notebook, style="AltCard.TFrame", padding=10)
+        notebook.add(info_tab, text="Details")
+        info_box = tk.Text(info_tab, bg="#101A2E", fg="#CDE1FF", relief="flat", font=("Consolas", 10), wrap="word")
+        info_box.pack(fill="both", expand=True)
+        info_box.insert(
+            "end",
+            f"Name      : {file_name}\n"
+            f"Path      : {file_path}\n"
+            f"Category  : {category}\n"
+            f"Size      : {size_label}\n"
+            f"Modified  : {modified}\n"
+            f"Extension : {Path(file_path).suffix.lower() or '(none)'}\n",
+        )
+        info_box.config(state="disabled")
+
+        editor_tab = ttk.Frame(notebook, style="Card.TFrame", padding=10)
+        notebook.add(editor_tab, text="Editor")
+        editor = tk.Text(editor_tab, bg="#0F1728", fg="#ECF3FF", insertbackground="#FFFFFF", relief="flat", font=("Consolas", 10))
+        editor.pack(fill="both", expand=True)
+        save_btn = ttk.Button(editor_tab, text="Save Changes", style="Glow.TButton")
+        save_btn.pack(anchor="e", pady=(8, 0))
+
+        win.current_file_path = file_path  # type: ignore[attr-defined]
+        win.editor_widget = editor  # type: ignore[attr-defined]
+        win.editor_save_btn = save_btn  # type: ignore[attr-defined]
+
+        self._load_editor_content(win)
+
+    def _open_file(self, file_path: str) -> None:
+        try:
+            if os.name == "nt":
+                os.startfile(file_path)
+            else:
+                subprocess.Popen(["xdg-open", file_path])
+        except OSError as exc:
+            messagebox.showerror("Open failed", f"Could not open file:\n{exc}")
+
+    def _focus_editor(self, file_win: tk.Toplevel) -> None:
+        editor = getattr(file_win, "editor_widget", None)
+        if editor is not None:
+            editor.focus_set()
+
+    def _rename_from_window(self, file_win: tk.Toplevel, file_path: str) -> None:
+        folder = os.path.dirname(file_path)
+        old_name = os.path.basename(file_path)
+
+        rename_win = tk.Toplevel(file_win)
+        rename_win.title("Rename file")
+        rename_win.geometry("460x140")
+        rename_win.configure(bg="#101726")
+        frame = ttk.Frame(rename_win, style="Card.TFrame", padding=12)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ttk.Label(frame, text="New file name", style="Label.TLabel").pack(anchor="w")
+        new_name_var = tk.StringVar(value=old_name)
+        entry = ttk.Entry(frame, textvariable=new_name_var, width=50)
+        entry.pack(fill="x", pady=(4, 10))
+        entry.focus_set()
+
+        def apply_rename() -> None:
+            new_name = new_name_var.get().strip()
+            if not new_name:
+                messagebox.showerror("Invalid name", "File name cannot be empty.")
+                return
+
+            new_path = os.path.join(folder, new_name)
+            try:
+                os.rename(file_path, new_path)
+            except OSError as exc:
+                messagebox.showerror("Rename failed", f"Could not rename file:\n{exc}")
+                return
+
+            file_win.current_file_path = new_path  # type: ignore[attr-defined]
+            file_win.title(f"File: {new_name}")
+            rename_win.destroy()
+            self.status.set(f"Renamed: {old_name} -> {new_name}")
+            self._run_search()
+
+        ttk.Button(frame, text="Apply Rename", style="Glow.TButton", command=apply_rename).pack(anchor="e")
+
+    def _load_editor_content(self, file_win: tk.Toplevel) -> None:
+        file_path = getattr(file_win, "current_file_path", "")
+        editor = getattr(file_win, "editor_widget", None)
+        save_btn = getattr(file_win, "editor_save_btn", None)
+        if not file_path or editor is None or save_btn is None:
+            return
+
+        ext = Path(file_path).suffix.lower()
+        editor.delete("1.0", "end")
+
+        if ext not in self.editor_extensions:
+            editor.insert("1.0", "This file type is not editable in-app.\nUse Open to edit with its native app.")
+            editor.config(state="disabled")
+            save_btn.config(state="disabled")
+            return
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            editor.insert("1.0", "Unable to edit this file as UTF-8 text.")
+            editor.config(state="disabled")
+            save_btn.config(state="disabled")
+            return
+        except OSError as exc:
+            editor.insert("1.0", f"Failed to read file:\n{exc}")
+            editor.config(state="disabled")
+            save_btn.config(state="disabled")
+            return
+
+        editor.config(state="normal")
+        editor.insert("1.0", content)
+        save_btn.config(state="normal", command=lambda: self._save_editor_content(file_win))
+
+    def _save_editor_content(self, file_win: tk.Toplevel) -> None:
+        file_path = getattr(file_win, "current_file_path", "")
+        editor = getattr(file_win, "editor_widget", None)
+        if not file_path or editor is None:
+            return
+
+        content = editor.get("1.0", "end-1c")
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except OSError as exc:
+            messagebox.showerror("Save failed", f"Could not save file:\n{exc}")
+            return
+
+        self.status.set(f"Saved changes to: {os.path.basename(file_path)}")
 
 
 def main() -> None:
