@@ -12,7 +12,44 @@ This project is a lightweight desktop app that indexes files on your Windows mac
 - Double-click a result to open an in-app file panel with actions: **Open**, **Edit** (text-based files), and **Rename**.
 - Built with Python standard library (`tkinter`, `sqlite3`) so no third-party dependency is required.
 
-## Run on Windows 11 (development)
+## For end users (normal consumers)
+
+You only need **one file**: `HyperSearchInstaller.exe`.
+
+After double-clicking that installer:
+
+- app installs fully (no Python installation needed)
+- app runs normally without any extra downloads
+- Start Menu shortcut is created
+- Desktop shortcut is created
+- app can be uninstalled from Windows Installed Apps
+
+> End users do **not** need Python, pip, or any developer tools.
+
+## Build final distributable installer (for app owner/developer)
+
+This repository includes a full Windows packaging flow that creates:
+
+- `dist\HyperSearch.exe` (single-file app executable)
+- `dist_installer\HyperSearchInstaller.exe` (the one-click installer you share)
+
+### Steps (on your build machine only)
+
+1. Install **Inno Setup 6**: https://jrsoftware.org/isdl.php
+2. Open PowerShell in the project root.
+3. Run:
+
+```powershell
+.\build_windows.ps1
+```
+
+4. Share only this file with users:
+
+```text
+dist_installer\HyperSearchInstaller.exe
+```
+
+## Run from source (development only)
 
 1. Install Python 3.10+.
 2. Open PowerShell in the project folder.
@@ -22,39 +59,7 @@ This project is a lightweight desktop app that indexes files on your Windows mac
 python app.py
 ```
 
-## Build final distributable installer (recommended)
-
-This project now includes a full Windows packaging flow that creates:
-
-- a **single-file app executable**: `dist\HyperSearch.exe`
-- a **one-click installer executable**: `dist_installer\HyperSearchInstaller.exe`
-
-The installer will:
-
-- install the app into `Program Files\HyperSearch`
-- add Start Menu entry
-- optionally add Desktop shortcut
-- support standard uninstall from Windows Apps/Programs
-
-### Steps
-
-1. Install **Inno Setup 6**: https://jrsoftware.org/isdl.php
-2. From PowerShell in project root, run:
-
-```powershell
-.\build_windows.ps1
-```
-
-3. Share `dist_installer\HyperSearchInstaller.exe` to other PCs.
-4. Double-click installer on target machine and follow setup wizard.
-
-> If you only want portable single EXE (no installer), run:
-
-```powershell
-.\build_windows.ps1 -SkipInstaller
-```
-
-## How to use
+## How to use the app
 
 1. Choose a folder or drive (for example `C:\`).
 2. Click **Build / Rebuild Index**.
